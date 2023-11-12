@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+
+	"github.com/mei-rune/httpdump"
 )
 
 type Target struct {
@@ -93,7 +96,6 @@ func (client *Client) Do(ctx context.Context, r *Request, responseValue interfac
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(body))
 
 	request, err := http.NewRequestWithContext(ctx, "POST", client.BaseURL, bytes.NewReader(body))
 	if err != nil {
@@ -106,16 +108,16 @@ func (client *Client) Do(ctx context.Context, r *Request, responseValue interfac
 		request.SetBasicAuth(client.Username, client.Password)
 	}
 
-	var response *http.Response
-	if client.Client == nil {
-		response, err = http.DefaultClient.Do(request)
-	} else {
-		response, err = client.Client.Do(request)
-	}
+	response, err := httpdump.Do(client.Client, request)
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	if response.Body != nil {
+		defer func() {
+			io.CopyN(io.Discard, response.Body, 32*1024*1024)
+			response.Body.Close()
+		}()
+	}
 	if response.StatusCode != 200 {
 		return nil, errors.New(fmt.Sprintf("status code: %d", response.StatusCode))
 	}
@@ -174,10 +176,10 @@ func (client *Client) Exec(ctx context.Context, target *Target, mbean, operation
 
 func (client *Client) Search(ctx context.Context, target *Target, mbean string, opts ...*Options) (*Response, error) {
 	return client.Do(ctx, &Request{
-		Type:      SearchRequest,
-		Mbean:     mbean,
-		Target:    target,
-		Config:    toConfig(opts),
+		Type:   SearchRequest,
+		Mbean:  mbean,
+		Target: target,
+		Config: toConfig(opts),
 	},
 		toResponseBody(opts))
 }
@@ -259,7 +261,7 @@ func (client *Client) ReadClass(ctx context.Context, target *Target, domain, att
 
 	opt.responseBody = &MbeanClass{}
 
-	response, err := client.List(ctx, target, domain+":"+attributes, toConfig(opts))
+	response, err := client.List(ctx, target, domain+":"+attributes, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -280,6 +282,6 @@ func (client *Client) ListProperties(ctx context.Context, target *Target, mbean,
 
 	var values map[string]interface{}
 	opt.responseBody = &values
-	response, err := client.Read(ctx, target, mbean, attributes, "", toConfig(opts))
+	response, err := client.Read(ctx, target, mbean, attributes, "", opt)
 	return values, response, err
 }

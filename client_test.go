@@ -3,25 +3,15 @@ package golokia
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
-)
-
-// Note that these test currently expect a jolokia java process to be
-// running on 7025. Currently tested with a cassandra process2
-
-var (
-	host       = "localhost"
-	port       = "8080"
-	jolokia    = "jolokia-war-1.2.3"
-	targetHost = "localhost"
-	targetPort = "9999"
 )
 
 func makeClient() *Client {
 	return &Client{
-		BaseURL:  "http://127.0.0.1:37150/jolokia",
-		Username: "hengwei",
-		Password: "iug7wr6lksd4fg",
+		BaseURL:  os.Getenv("golokia_url"),
+		Username: os.Getenv("golokia_username"),
+		Password: os.Getenv("golokia_password"),
 	}
 }
 
